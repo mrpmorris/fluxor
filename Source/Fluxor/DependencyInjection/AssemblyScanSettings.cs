@@ -18,6 +18,18 @@ namespace Fluxor.DependencyInjection
 			Namespace = @namespace;
 		}
 
+		public static bool operator == (AssemblyScanSettings x, AssemblyScanSettings y)
+		{
+			if (x is null && y is null)
+				return true;
+			return y is null
+				? x.Equals(y)
+				: y.Equals(x);
+		}
+
+		public static bool operator !=(AssemblyScanSettings x, AssemblyScanSettings y) =>
+			!(x == y);
+
 		public bool Matches(Type type) =>
 				type.Assembly == Assembly
 				&&

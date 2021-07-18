@@ -33,14 +33,10 @@ namespace Fluxor
 			foreach (Type middlewareType in options.MiddlewareTypes)
 				serviceCollection.AddScoped(middlewareType);
 
-			IEnumerable<AssemblyScanSettings> scanIncludeList = options.MiddlewareTypes
-				.Select(t => new AssemblyScanSettings(t.Assembly, t.Namespace));
 
 			DependencyScanner.Scan(
 				options: options,
-				serviceCollection: serviceCollection,
-				assembliesToScan: options.AssembliesToScan,
-				scanIncludeList: scanIncludeList);
+				serviceCollection: serviceCollection);
 			serviceCollection.AddScoped(typeof(IState<>), typeof(State<>));
 
 			return serviceCollection;

@@ -11,16 +11,13 @@ namespace Fluxor.DependencyInjection
 	{
 		internal static void Scan(
 			this IServiceCollection serviceCollection,
-			FluxorOptions options,
-			IEnumerable<AssemblyScanSettings> assembliesToScan,
-			IEnumerable<AssemblyScanSettings> scanIncludeList)
+			FluxorOptions options)
 		{
-			if (assembliesToScan == null || assembliesToScan.Count() == 0)
-				throw new ArgumentNullException(nameof(assembliesToScan));
+			if (options == null)
+				throw new ArgumentNullException(nameof(options));
 
 			GetCandidateTypes(
-				assembliesToScan: assembliesToScan,
-				scanIncludeList: scanIncludeList ?? new List<AssemblyScanSettings>(),
+				options,
 				allCandidateTypes: out Type[] allCandidateTypes,
 				allNonAbstractCandidateTypes: out Type[] allNonAbstractCandidateTypes);
 
@@ -56,11 +53,19 @@ namespace Fluxor.DependencyInjection
 		}
 
 		private static void GetCandidateTypes(
-			IEnumerable<AssemblyScanSettings> assembliesToScan,
-			IEnumerable<AssemblyScanSettings> scanIncludeList,
+			FluxorOptions options,
 			out Type[] allCandidateTypes,
 			out Type[] allNonAbstractCandidateTypes)
 		{
+			if (options == null)
+				throw new ArgumentNullException(nameof(options));
+
+			IEnumerable<AssemblyScanSettings> assembliesToScan = options.AssembliesToScan;
+			IEnumerable<AssemblyScanSettings> scanIncludeList =
+				options
+					.MiddlewareTypes
+					.Select(t => new AssemblyScanSettings(t.Assembly, t.Namespace));
+
 			Assembly[] allCandidateAssemblies =
 				assembliesToScan
 					.Select(x => x.Assembly)
@@ -71,16 +76,19 @@ namespace Fluxor.DependencyInjection
 			AssemblyScanSettings[] scanExcludeList =
 				MiddlewareClassesDiscovery.FindMiddlewareLocations(allCandidateAssemblies);
 
+			allCandidateTypes = allCandidateAssemblies
+				.SelectMany(x => x.GetTypes())
+				.Union(scanIncludeList.SelectMany(x => x.Assembly.GetTypes()))
+				.Union(options.AdditionalTypesToScan)
+				.Where(t => !t.IsGenericTypeDefinition)
+				.Distinct()
+				.ToArray();
+
 			allCandidateTypes = AssemblyScanSettings.FilterClasses(
 				scanExcludeList: scanExcludeList,
 				scanIncludeList: scanIncludeList,
-				types:
-					allCandidateAssemblies
-						.SelectMany(x => x.GetTypes())
-						.Union(scanIncludeList.SelectMany(x => x.Assembly.GetTypes()))
-						.Where(t => !t.IsGenericType)
-						.Distinct()
-						.ToArray());
+				types: allCandidateTypes);
+
 			allNonAbstractCandidateTypes = allCandidateTypes
 					.Where(t => !t.IsAbstract)
 					.ToArray();
@@ -109,6 +117,9 @@ namespace Fluxor.DependencyInjection
 					var feature = (IFeature)serviceProvider.GetService(discoveredFeatureClass.FeatureInterfaceGenericType);
 					store.AddFeature(feature);
 				}
+
+				foreach (IFeature registeredGenericFeature in options.RegisteredGenericFeatures)
+					store.AddFeature(registeredGenericFeature);
 
 				foreach (DiscoveredEffectClass discoveredEffectClass in discoveredEffectClasses)
 				{
